@@ -1,6 +1,3 @@
-// Balloon Blast Game
-// A fun game where you pump balloons and burst them!
-
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 const scoreElement = document.getElementById('scoreValue');
@@ -23,8 +20,18 @@ let currentLetterIndex = 0;
 let imagesLoaded = false;
 let birds = [];
 let gameOver = false;
+let weather = {
+    type: 'sunny', // 'sunny', 'rainy', 'cloudy'
+    raindrops: [],
+    sunRays: [],
+    changeInterval: 15000, // Change weather every 15 seconds
+    lastChange: Date.now(),
+    timeOfDay: 0, // 0-1, where 0 is midnight, 0.5 is noon
+    dayNightSpeed: 0.00005, // Speed of day/night cycle
+    stars: []
+};
 
-// Image assets
+
 const images = {
     balloonPatterns: [],
     letters: [],
@@ -33,7 +40,7 @@ const images = {
     pumpInflator: new Image()
 };
 
-// Load all images
+
 function loadImages() {
     let loadedCount = 0;
     const totalImages = 10 + 26 + 3; // 10 balloon patterns + 26 letters + 3 pump parts
@@ -54,7 +61,7 @@ function loadImages() {
         }
     }
 
-    // Load balloon patterns (1-11, skipping 6 which doesn't exist)
+    // Load balloon patterns
     const patternNumbers = [1, 2, 3, 4, 5, 7, 8, 9, 10, 11];
     patternNumbers.forEach((num, index) => {
         const img = new Image();
@@ -64,7 +71,7 @@ function loadImages() {
         images.balloonPatterns[index] = img;
     });
 
-    // Load letter images (Symbol 10001.png to Symbol 10026.png for A-Z)
+    // Load letter images
     for (let i = 1; i <= 26; i++) {
         const img = new Image();
         img.onload = onImageLoad;
@@ -88,7 +95,6 @@ function loadImages() {
     images.pumpInflator.src = 'Graphics/pump_inflator.png';
 }
 
-// Start loading images
 loadImages();
 
 // Cloud class for background
@@ -213,6 +219,87 @@ class Bird {
         const dx = px - this.x;
         const dy = py - this.y;
         return Math.sqrt(dx * dx + dy * dy) < this.size;
+    }
+}
+
+// Raindrop class for weather effect
+class Raindrop {
+    constructor() {
+        this.x = Math.random() * canvas.width;
+        this.y = -10;
+        this.speed = 5 + Math.random() * 5;
+        this.length = 15 + Math.random() * 10;
+    }
+
+    update() {
+        this.y += this.speed;
+        return this.y < canvas.height;
+    }
+
+    draw() {
+        ctx.strokeStyle = 'rgba(174, 214, 241, 0.6)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(this.x, this.y);
+        ctx.lineTo(this.x, this.y + this.length);
+        ctx.stroke();
+    }
+}
+
+// Sun ray class for weather effect
+class SunRay {
+    constructor(index, total) {
+        this.angle = (index / total) * Math.PI * 2;
+        this.length = 60;
+        this.pulseOffset = Math.random() * Math.PI * 2;
+    }
+
+    draw(time) {
+        const sunX = canvas.width - 100;
+        const sunY = 80;
+        const pulse = Math.sin(time * 0.002 + this.pulseOffset) * 10;
+        const currentLength = this.length + pulse;
+        
+        ctx.strokeStyle = 'rgba(255, 220, 100, 0.4)';
+        ctx.lineWidth = 3;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(sunX + Math.cos(this.angle) * 40, sunY + Math.sin(this.angle) * 40);
+        ctx.lineTo(
+            sunX + Math.cos(this.angle) * (40 + currentLength),
+            sunY + Math.sin(this.angle) * (40 + currentLength)
+        );
+        ctx.stroke();
+    }
+}
+
+// Star class for night sky
+class Star {
+    constructor() {
+        this.x = Math.random() * canvas.width;
+        this.y = Math.random() * (canvas.height * 0.7);
+        this.size = 1 + Math.random() * 2;
+        this.twinkleSpeed = 0.02 + Math.random() * 0.03;
+        this.twinkleOffset = Math.random() * Math.PI * 2;
+        this.brightness = 0.5 + Math.random() * 0.5;
+    }
+
+    draw(time, nightIntensity) {
+        const twinkle = Math.sin(time * this.twinkleSpeed + this.twinkleOffset) * 0.3 + 0.7;
+        const alpha = this.brightness * twinkle * nightIntensity;
+        
+        ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // Add small glow
+        if (this.size > 1.5) {
+            ctx.fillStyle = `rgba(255, 255, 200, ${alpha * 0.3})`;
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, this.size * 2, 0, Math.PI * 2);
+            ctx.fill();
+        }
     }
 }
 
@@ -449,7 +536,7 @@ class AirPump {
             bodyHeight = images.pumpBody.height * this.pumpScale;
         }
 
-        // Draw pump handle (moves up and down) - draw first so it's behind
+        // Draw pump handle
         if (images.pumpHandle.complete && images.pumpHandle.naturalWidth > 0) {
             const handleWidth = images.pumpHandle.width * this.pumpScale;
             const handleHeight = images.pumpHandle.height * this.pumpScale;
@@ -658,6 +745,151 @@ function initBirds() {
 }
 initBirds();
 
+// Initialize weather
+function initWeather() {
+    // Create sun rays
+    weather.sunRays = [];
+    for (let i = 0; i < 12; i++) {
+        weather.sunRays.push(new SunRay(i, 12));
+    }
+    
+    // Create stars
+    weather.stars = [];
+    for (let i = 0; i < 100; i++) {
+        weather.stars.push(new Star());
+    }
+}
+initWeather();
+
+function changeWeather() {
+    const weatherTypes = ['sunny', 'rainy', 'cloudy'];
+    const currentIndex = weatherTypes.indexOf(weather.type);
+    weather.type = weatherTypes[(currentIndex + 1) % weatherTypes.length];
+    weather.raindrops = [];
+}
+
+function updateWeather() {
+    // Update day/night cycle
+    weather.timeOfDay += weather.dayNightSpeed;
+    if (weather.timeOfDay > 1) {
+        weather.timeOfDay = 0;
+    }
+    
+    // Change weather periodically
+    if (Date.now() - weather.lastChange > weather.changeInterval) {
+        changeWeather();
+        weather.lastChange = Date.now();
+    }
+
+    // Update raindrops
+    if (weather.type === 'rainy') {
+        // Add new raindrops
+        if (Math.random() < 0.3) {
+            weather.raindrops.push(new Raindrop());
+        }
+        // Update existing raindrops
+        weather.raindrops = weather.raindrops.filter(drop => drop.update());
+    }
+}
+
+function getBackgroundColors() {
+    const t = weather.timeOfDay;
+    let topColor, bottomColor;
+    
+    // Dawn (0-0.25): Dark to light
+    if (t < 0.25) {
+        const progress = t / 0.25;
+        topColor = lerpColor([25, 25, 50], [135, 206, 235], progress);
+        bottomColor = lerpColor([15, 15, 35], [245, 230, 163], progress);
+    }
+    // Day (0.25-0.5): Full daylight
+    else if (t < 0.5) {
+        topColor = [135, 206, 235];
+        bottomColor = [245, 230, 163];
+    }
+    // Dusk (0.5-0.75): Light to dark
+    else if (t < 0.75) {
+        const progress = (t - 0.5) / 0.25;
+        topColor = lerpColor([135, 206, 235], [50, 30, 80], progress);
+        bottomColor = lerpColor([245, 230, 163], [30, 20, 50], progress);
+    }
+    // Night (0.75-1): Full night
+    else {
+        topColor = [25, 25, 50];
+        bottomColor = [15, 15, 35];
+    }
+    
+    return {
+        top: `rgb(${topColor[0]}, ${topColor[1]}, ${topColor[2]})`,
+        bottom: `rgb(${bottomColor[0]}, ${bottomColor[1]}, ${bottomColor[2]})`
+    };
+}
+
+function lerpColor(color1, color2, t) {
+    return [
+        Math.round(color1[0] + (color2[0] - color1[0]) * t),
+        Math.round(color1[1] + (color2[1] - color1[1]) * t),
+        Math.round(color1[2] + (color2[2] - color1[2]) * t)
+    ];
+}
+
+function drawWeather() {
+    const t = weather.timeOfDay;
+    const isDaytime = t >= 0.25 && t <= 0.75;
+    const isNighttime = t < 0.25 || t > 0.75;
+    
+    // Calculate celestial body position (sun/moon)
+    const celestialX = canvas.width - 100;
+    const celestialY = 80;
+    
+    if (weather.type === 'sunny' && isDaytime) {
+        // Draw sun
+        // Sun rays
+        weather.sunRays.forEach(ray => ray.draw(Date.now()));
+        
+        // Sun circle
+        const sunGradient = ctx.createRadialGradient(celestialX, celestialY, 0, celestialX, celestialY, 40);
+        sunGradient.addColorStop(0, '#fff9e6');
+        sunGradient.addColorStop(0.5, '#ffeb3b');
+        sunGradient.addColorStop(1, '#ffd700');
+        ctx.fillStyle = sunGradient;
+        ctx.beginPath();
+        ctx.arc(celestialX, celestialY, 40, 0, Math.PI * 2);
+        ctx.fill();
+    } else if (isNighttime) {
+        // Draw moon
+        const moonGradient = ctx.createRadialGradient(celestialX - 10, celestialY - 10, 0, celestialX, celestialY, 35);
+        moonGradient.addColorStop(0, '#ffffff');
+        moonGradient.addColorStop(0.5, '#f0f0f0');
+        moonGradient.addColorStop(1, '#d0d0d0');
+        ctx.fillStyle = moonGradient;
+        ctx.beginPath();
+        ctx.arc(celestialX, celestialY, 35, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // Moon craters
+        ctx.fillStyle = 'rgba(180, 180, 180, 0.3)';
+        ctx.beginPath();
+        ctx.arc(celestialX - 10, celestialY - 5, 8, 0, Math.PI * 2);
+        ctx.arc(celestialX + 8, celestialY + 10, 5, 0, Math.PI * 2);
+        ctx.arc(celestialX + 5, celestialY - 12, 6, 0, Math.PI * 2);
+        ctx.fill();
+    }
+    
+    if (weather.type === 'rainy') {
+        // Draw rain
+        weather.raindrops.forEach(drop => drop.draw());
+        
+        // Dark overlay for rain
+        ctx.fillStyle = 'rgba(100, 120, 140, 0.1)';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+    } else if (weather.type === 'cloudy') {
+        // Extra dark clouds (already have clouds in background)
+        ctx.fillStyle = 'rgba(200, 200, 210, 0.15)';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
+}
+
 // Input handling
 let mouseDown = false;
 let gameOverButton = null;
@@ -748,6 +980,9 @@ canvas.addEventListener('touchcancel', handleEnd, { passive: false });
 function update() {
     if (gameOver) return;
     
+    // Update weather
+    updateWeather();
+    
     // Update clouds
     clouds.forEach(cloud => cloud.update());
 
@@ -768,12 +1003,26 @@ function update() {
 }
 
 function draw() {
-    // Clear canvas
-    ctx.fillStyle = '#f5e6a3';
+    // Clear canvas with dynamic background based on time of day
+    const bgColors = getBackgroundColors();
+    const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+    gradient.addColorStop(0, bgColors.top);
+    gradient.addColorStop(1, bgColors.bottom);
+    ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Draw stars if night time
+    const nightIntensity = Math.max(0, weather.timeOfDay < 0.25 ? (0.25 - weather.timeOfDay) / 0.25 : 
+                                      weather.timeOfDay > 0.75 ? (weather.timeOfDay - 0.75) / 0.25 : 0);
+    if (nightIntensity > 0) {
+        weather.stars.forEach(star => star.draw(Date.now(), nightIntensity));
+    }
 
     // Draw clouds
     clouds.forEach(cloud => cloud.draw());
+
+    // Draw weather effects
+    drawWeather();
 
     // Draw birds
     birds.forEach(bird => bird.draw());
@@ -789,6 +1038,13 @@ function draw() {
 
     // Draw back button
     backButton.draw();
+
+    // Draw developer credit
+    ctx.fillStyle = 'rgba(8, 8, 8, 0.6)';
+    ctx.font = '20px Arial';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'bottom';
+    ctx.fillText('Developed by Sushil Verma', 10, canvas.height - 10);
 
     // Draw game over modal
     if (gameOver) {

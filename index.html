@@ -1,9 +1,13 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Balloon Blast Game</title>
+    <title>Balloon Blaster</title>
+
+    <link rel="icon" type="image/png" href="Graphics/ballon_pattern5.png">
+
     <style>
         * {
             margin: 0;
@@ -29,13 +33,15 @@
             font-size: 28px;
             color: #333;
             font-weight: bold;
-            text-shadow: 2px 2px 4px rgba(255,255,255,0.5);
+            text-shadow: 2px 2px 4px rgba(255, 255, 255, 0.5);
         }
     </style>
 </head>
+
 <body>
     <canvas id="gameCanvas"></canvas>
     <div id="score">Score: <span id="scoreValue">0</span></div>
     <script src="game.js"></script>
 </body>
+
 </html>
