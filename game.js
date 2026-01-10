@@ -1040,11 +1040,12 @@ function draw() {
     backButton.draw();
 
     // Draw developer credit
-    ctx.fillStyle = 'rgba(8, 8, 8, 0.6)';
+    const isNight = weather.timeOfDay < 0.25 || weather.timeOfDay > 0.75;
+    ctx.fillStyle = isNight ? 'rgba(255, 50, 50, 0.8)' : 'rgba(8, 8, 8, 0.6)';
     ctx.font = '20px Arial';
     ctx.textAlign = 'left';
     ctx.textBaseline = 'bottom';
-    ctx.fillText('Developed by Sushil Verma', 10, canvas.height - 10);
+    ctx.fillText('Developed by Sushil', 10, canvas.height - 10);
 
     // Draw game over modal
     if (gameOver) {
