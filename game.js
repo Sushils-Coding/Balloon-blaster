@@ -20,7 +20,10 @@ let currentLetterIndex = 0;
 let imagesLoaded = false;
 let birds = [];
 let gameOver = false;
-let weather = {
+
+// Load saved weather state from localStorage
+const savedWeather = localStorage.getItem('balloonGameWeather');
+let weather = savedWeather ? JSON.parse(savedWeather) : {
     type: 'sunny', // 'sunny', 'rainy', 'cloudy'
     raindrops: [],
     sunRays: [],
@@ -30,6 +33,12 @@ let weather = {
     dayNightSpeed: 0.00005, // Speed of day/night cycle
     stars: []
 };
+
+// Reset transient properties
+weather.raindrops = [];
+weather.sunRays = [];
+weather.stars = [];
+weather.lastChange = Date.now();
 
 
 const images = {
@@ -634,14 +643,18 @@ class AirPump {
         // Animate handle
         if (this.pressing && this.handleY < this.maxHandleY) {
             this.handleY += 8;
-            if (inflatingBalloon && inflatingBalloon.inflating) {
-                inflatingBalloon.inflate(5);
-            }
         } else if (!this.pressing && this.handleY > 0) {
+            // Return handle to top when released
             this.handleY -= 4;
         }
 
         this.handleY = Math.max(0, Math.min(this.maxHandleY, this.handleY));
+
+        // Inflate balloon based on handle position (not pressing state)
+        // Inflate while handle is down (handleY > 5 threshold to avoid jitter)
+        if (inflatingBalloon && inflatingBalloon.inflating && this.handleY > 5) {
+            inflatingBalloon.inflate(2.5);
+        }
 
         // Check if balloon is done inflating
         if (inflatingBalloon && !inflatingBalloon.inflating && inflatingBalloon.flying) {
@@ -650,6 +663,8 @@ class AirPump {
             inflatingBalloon.y = this.nozzleY - 75 - inflatingBalloon.size;
             balloons.push(inflatingBalloon);
             inflatingBalloon = null;
+            // Auto-release the pump when balloon is done
+            this.pressing = false;
         }
     }
 
@@ -774,6 +789,14 @@ function updateWeather() {
     if (weather.timeOfDay > 1) {
         weather.timeOfDay = 0;
     }
+    
+    // Save weather state to localStorage
+    localStorage.setItem('balloonGameWeather', JSON.stringify({
+        type: weather.type,
+        timeOfDay: weather.timeOfDay,
+        dayNightSpeed: weather.dayNightSpeed,
+        changeInterval: weather.changeInterval
+    }));
     
     // Change weather periodically
     if (Date.now() - weather.lastChange > weather.changeInterval) {
@@ -1162,3 +1185,33 @@ window.addEventListener('resize', () => {
     initClouds();
     initBirds();
 });
+
+// Loading screen and instruction modal management
+function checkLoadingComplete() {
+    if (imagesLoaded) {
+        // Hide loading screen
+        const loadingScreen = document.getElementById('loadingScreen');
+        if (loadingScreen) {
+            loadingScreen.classList.add('hidden');
+        }
+        
+        // Show instruction modal
+        const instructionModal = document.getElementById('instructionModal');
+        if (instructionModal) {
+            instructionModal.classList.add('show');
+        }
+    } else {
+        setTimeout(checkLoadingComplete, 100);
+    }
+}
+
+// Make closeInstructions globally accessible
+window.closeInstructions = function() {
+    const instructionModal = document.getElementById('instructionModal');
+    if (instructionModal) {
+        instructionModal.classList.remove('show');
+    }
+};
+
+// Start checking for loading completion
+checkLoadingComplete();
