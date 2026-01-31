@@ -44,6 +44,7 @@ weather.lastChange = Date.now();
 const images = {
     balloonPatterns: [],
     letters: [],
+    numbers: [],
     pumpBody: new Image(),
     pumpHandle: new Image(),
     pumpInflator: new Image()
@@ -52,7 +53,7 @@ const images = {
 
 function loadImages() {
     let loadedCount = 0;
-    const totalImages = 10 + 26 + 3; // 10 balloon patterns + 26 letters + 3 pump parts
+    const totalImages = 10 + 26 + 10 + 3; // 10 balloon patterns + 26 letters + 10 numbers + 3 pump parts
 
     function onImageLoad() {
         loadedCount++;
@@ -88,6 +89,15 @@ function loadImages() {
         const num = 10000 + i;
         img.src = `Graphics/Symbol ${num}.png`;
         images.letters[i - 1] = img;
+    }
+
+    // Load number images (0-9)
+    for (let i = 0; i <= 9; i++) {
+        const img = new Image();
+        img.onload = onImageLoad;
+        img.onerror = onImageError;
+        img.src = `Graphics/${i}.png`;
+        images.numbers[i] = img;
     }
 
     // Load pump parts
@@ -314,11 +324,12 @@ class Star {
 
 // Balloon class
 class Balloon {
-    constructor(x, y, patternIndex, letterIndex) {
+    constructor(x, y, patternIndex, symbolData) {
         this.x = x;
         this.y = y;
         this.patternIndex = patternIndex;
-        this.letterIndex = letterIndex;
+        this.symbolType = symbolData.type; // 'letter' or 'number'
+        this.symbolIndex = symbolData.index;
         this.size = 0;
         this.maxSize = 80;
         this.inflating = true;
@@ -427,13 +438,19 @@ class Balloon {
             ctx.drawImage(balloonImg, -width/2, -height/2, width, height);
         }
 
-        // Draw letter image on top of balloon
-        const letterImg = images.letters[this.letterIndex];
-        if (letterImg && letterImg.complete && letterImg.naturalWidth > 0 && this.size > 30) {
-            const letterScale = (this.size * 0.8) / Math.max(letterImg.width, letterImg.height);
-            const letterWidth = letterImg.width * letterScale;
-            const letterHeight = letterImg.height * letterScale;
-            ctx.drawImage(letterImg, -letterWidth/2, -letterHeight/2 - 5, letterWidth, letterHeight);
+        // Draw letter or number image
+        let symbolImg;
+        if (this.symbolType === 'letter') {
+            symbolImg = images.letters[this.symbolIndex];
+        } else {
+            symbolImg = images.numbers[this.symbolIndex];
+        }
+        
+        if (symbolImg && symbolImg.complete && symbolImg.naturalWidth > 0 && this.size > 30) {
+            const letterScale = (this.size * 0.8) / Math.max(symbolImg.width, symbolImg.height);
+            const letterWidth = symbolImg.width * letterScale;
+            const letterHeight = symbolImg.height * letterScale;
+            ctx.drawImage(symbolImg, -letterWidth/2, -letterHeight/2 - 5, letterWidth, letterHeight);
         }
 
         ctx.restore();
@@ -504,6 +521,23 @@ class Particle {
     }
 }
 
+// Function to generate random symbol (letter or number)
+function getRandomSymbol() {
+    const useNumber = Math.random() < 0.5; // 50% chance for number vs letter
+    
+    if (useNumber) {
+        return {
+            type: 'number',
+            index: Math.floor(Math.random() * 10) // Random number 0-9
+        };
+    } else {
+        return {
+            type: 'letter',
+            index: currentLetterIndex % 26
+        };
+    }
+}
+
 // Air Pump class
 class AirPump {
     constructor() {
@@ -512,6 +546,8 @@ class AirPump {
         this.maxHandleY = 50;
         this.pressing = false;
         this.pumpCount = 0;
+        this.autoInflate = false;
+        this.autoPumpDirection = 1; // 1 for down, -1 for up
         this.updatePosition();
     }
 
@@ -588,6 +624,9 @@ class AirPump {
             this.drawInflatingBalloon();
         }
 
+        // Draw auto-inflate button
+        this.drawAutoInflateButton();
+
         ctx.restore();
     }
 
@@ -608,16 +647,59 @@ class AirPump {
             ctx.drawImage(balloonImg, -width/2, -height/2, width, height);
         }
 
-        // Draw letter image
-        const letterImg = images.letters[b.letterIndex];
-        if (letterImg && letterImg.complete && letterImg.naturalWidth > 0 && b.size > 20) {
-            const letterScale = (b.size * 0.6) / Math.max(letterImg.width, letterImg.height);
-            const letterWidth = letterImg.width * letterScale;
-            const letterHeight = letterImg.height * letterScale;
-            ctx.drawImage(letterImg, -letterWidth/2, -letterHeight/2, letterWidth, letterHeight);
+        // Draw letter or number image
+        let symbolImg;
+        if (b.symbolType === 'letter') {
+            symbolImg = images.letters[b.symbolIndex];
+        } else {
+            symbolImg = images.numbers[b.symbolIndex];
+        }
+        
+        if (symbolImg && symbolImg.complete && symbolImg.naturalWidth > 0 && b.size > 20) {
+            const letterScale = (b.size * 0.6) / Math.max(symbolImg.width, symbolImg.height);
+            const letterWidth = symbolImg.width * letterScale;
+            const letterHeight = symbolImg.height * letterScale;
+            ctx.drawImage(symbolImg, -letterWidth/2, -letterHeight/2, letterWidth, letterHeight);
         }
 
         ctx.restore();
+    }
+
+    drawAutoInflateButton() {
+        const buttonSize = 40;
+        const buttonX = this.nozzleX + 60;
+        const buttonY = this.nozzleY - 20;
+        
+        ctx.save();
+        
+        // Button background
+        ctx.fillStyle = this.autoInflate ? '#ff6b6b' : '#4CAF50';
+        ctx.beginPath();
+        ctx.roundRect(buttonX - buttonSize/2, buttonY - buttonSize/2, buttonSize, buttonSize, 8);
+        ctx.fill();
+        
+        // Button border
+        ctx.strokeStyle = '#333';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        
+        // Button text
+        ctx.fillStyle = 'white';
+        ctx.font = 'bold 12px Arial';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(this.autoInflate ? 'OFF' : 'AUTO', buttonX, buttonY - 2);
+        ctx.fillText(this.autoInflate ? 'AUTO' : 'PUMP', buttonX, buttonY + 10);
+        
+        ctx.restore();
+        
+        // Store button bounds for click detection
+        this.autoButtonBounds = {
+            x: buttonX - buttonSize/2,
+            y: buttonY - buttonSize/2,
+            width: buttonSize,
+            height: buttonSize
+        };
     }
 
     press() {
@@ -628,9 +710,11 @@ class AirPump {
             // Create new balloon if needed
             if (!inflatingBalloon || !inflatingBalloon.inflating) {
                 const patternIndex = Math.floor(Math.random() * images.balloonPatterns.length);
-                const letterIndex = currentLetterIndex % 26;
-                currentLetterIndex++;
-                inflatingBalloon = new Balloon(this.nozzleX, this.nozzleY - 80, patternIndex, letterIndex);
+                const symbolData = getRandomSymbol();
+                if (symbolData.type === 'letter') {
+                    currentLetterIndex++; // Only increment for letters
+                }
+                inflatingBalloon = new Balloon(this.nozzleX, this.nozzleY - 80, patternIndex, symbolData);
             }
         }
     }
@@ -640,12 +724,35 @@ class AirPump {
     }
 
     update() {
-        // Animate handle
-        if (this.pressing && this.handleY < this.maxHandleY) {
-            this.handleY += 8;
-        } else if (!this.pressing && this.handleY > 0) {
-            // Return handle to top when released
-            this.handleY -= 4;
+        // Handle auto-inflate mode
+        if (this.autoInflate) {
+            // Auto-pump animation - continuous up/down movement
+            if (this.autoPumpDirection === 1 && this.handleY < this.maxHandleY) {
+                this.handleY += 6;
+            } else if (this.autoPumpDirection === 1 && this.handleY >= this.maxHandleY) {
+                this.autoPumpDirection = -1;
+            } else if (this.autoPumpDirection === -1 && this.handleY > 0) {
+                this.handleY -= 6;
+            } else if (this.autoPumpDirection === -1 && this.handleY <= 0) {
+                this.autoPumpDirection = 1;
+                // Create new balloon when pump cycle completes if none exists
+                if (!inflatingBalloon) {
+                    const patternIndex = Math.floor(Math.random() * images.balloonPatterns.length);
+                    const symbolData = getRandomSymbol();
+                    if (symbolData.type === 'letter') {
+                        currentLetterIndex++; // Only increment for letters
+                    }
+                    inflatingBalloon = new Balloon(this.nozzleX, this.nozzleY - 80, patternIndex, symbolData);
+                }
+            }
+        } else {
+            // Manual mode - animate handle based on pressing
+            if (this.pressing && this.handleY < this.maxHandleY) {
+                this.handleY += 8;
+            } else if (!this.pressing && this.handleY > 0) {
+                // Return handle to top when released
+                this.handleY -= 4;
+            }
         }
 
         this.handleY = Math.max(0, Math.min(this.maxHandleY, this.handleY));
@@ -663,8 +770,10 @@ class AirPump {
             inflatingBalloon.y = this.nozzleY - 75 - inflatingBalloon.size;
             balloons.push(inflatingBalloon);
             inflatingBalloon = null;
-            // Auto-release the pump when balloon is done
-            this.pressing = false;
+            // Auto-release the pump when balloon is done (only in manual mode)
+            if (!this.autoInflate) {
+                this.pressing = false;
+            }
         }
     }
 
@@ -688,6 +797,20 @@ class AirPump {
         // Check if click is within handle area
         return x >= handleX && x <= handleX + handleWidth &&
                y >= handleY && y <= handleY + handleHeight;
+    }
+
+    containsAutoButton(x, y) {
+        if (!this.autoButtonBounds) return false;
+        return x >= this.autoButtonBounds.x && x <= this.autoButtonBounds.x + this.autoButtonBounds.width &&
+               y >= this.autoButtonBounds.y && y <= this.autoButtonBounds.y + this.autoButtonBounds.height;
+    }
+
+    toggleAutoInflate() {
+        this.autoInflate = !this.autoInflate;
+        if (this.autoInflate) {
+            this.pressing = false; // Stop manual pressing when auto mode starts
+            this.autoPumpDirection = 1; // Start pumping down
+        }
     }
 }
 
@@ -971,6 +1094,12 @@ function handleStart(e) {
             balloons[i].pop();
             return;
         }
+    }
+
+    // Check pump handle
+    if (pump.containsAutoButton(pos.x, pos.y)) {
+        pump.toggleAutoInflate();
+        return;
     }
 
     // Check pump handle
