@@ -34,6 +34,13 @@
             color: #333;
             font-weight: bold;
             text-shadow: 2px 2px 4px rgba(255, 255, 255, 0.5);
+            text-align: right;
+        }
+
+        #highScore {
+            font-size: 16px;
+            color: #666;
+            margin-top: 5px;
         }
 
         #loadingScreen {
@@ -162,8 +169,19 @@
     </div>
 
     <canvas id="gameCanvas"></canvas>
-    <div id="score">Score: <span id="scoreValue">0</span></div>
-    <script src="game.js"></script>
+    <div id="score">
+        Score: <span id="scoreValue">0</span>
+        <div id="highScore">Best: <span id="highScoreValue">0</span></div>
+    </div>
+    
+    <!-- Game Scripts (order matters!) -->
+    <script src="js/config.js"></script>
+    <script src="js/utils.js"></script>
+    <script src="js/weather.js"></script>
+    <script src="js/entities.js"></script>
+    <script src="js/pump.js"></script>
+    <script src="js/input.js"></script>
+    <script src="js/game.js"></script>
 </body>
 
 </html>
