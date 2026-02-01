@@ -12,6 +12,7 @@ class Game {
         // State
         this.score = 0;
         this.highScore = parseInt(localStorage.getItem(STORAGE_KEYS.HIGH_SCORE)) || 0;
+        this.lives = 3;  // Start with 3 lives
         this.gameOver = false;
         this.imagesLoaded = false;
         this.gameOverButton = null;
@@ -27,6 +28,9 @@ class Game {
         this.birds = [];
         this.scorePopups = [];  // Floating score text
         
+        // Broken heart image state
+        this.brokenHeartDisplay = null;  // { x, y, scale, opacity }
+        
         // Symbol pools
         this.availableLetters = [];
         this.availableNumbers = [];
@@ -40,7 +44,10 @@ class Game {
             numbers: [],
             pumpBody: new Image(),
             pumpHandle: new Image(),
-            pumpInflator: new Image()
+            pumpInflator: new Image(),
+            brokenHeart: new Image(),
+            heart: new Image(),
+            emptyHeart: new Image()
         };
         
         // Initialize
@@ -83,7 +90,7 @@ class Game {
     
     loadImages() {
         let loadedCount = 0;
-        const totalImages = 10 + 26 + 10 + 3;
+        const totalImages = 10 + 26 + 10 + 3 + 1 + 2;  // Added 2 for heart images
 
         const onLoad = () => {
             loadedCount++;
@@ -137,6 +144,21 @@ class Game {
         this.images.pumpInflator.onload = onLoad;
         this.images.pumpInflator.onerror = onError;
         this.images.pumpInflator.src = 'Graphics/pump_inflator.png';
+        
+        // Broken heart
+        this.images.brokenHeart.onload = onLoad;
+        this.images.brokenHeart.onerror = onError;
+        this.images.brokenHeart.src = 'Graphics/broken_heart.png';
+        
+        // Heart (lives)
+        this.images.heart.onload = onLoad;
+        this.images.heart.onerror = onError;
+        this.images.heart.src = 'Graphics/heart.png';
+        
+        // Empty heart (lost lives)
+        this.images.emptyHeart.onload = onLoad;
+        this.images.emptyHeart.onerror = onError;
+        this.images.emptyHeart.src = 'Graphics/empty_heart.png';
     }
 
     // ==========================================
@@ -238,7 +260,7 @@ class Game {
         // Birds
         for (const bird of this.birds) {
             if (bird.contains(x, y)) {
-                this.gameOver = true;
+                this.loseLife();
                 return;
             }
         }
@@ -388,14 +410,36 @@ class Game {
         
         return totalPoints;
     }
+    
+    loseLife() {
+        this.lives--;
+        
+        // Create broken heart image animation in center of screen
+        this.brokenHeartDisplay = {
+            x: this.canvas.width / 2,
+            y: this.canvas.height / 2,
+            scale: 0.5,
+            opacity: 0.7,
+            maxScale: 2.5,
+            scaleSpeed: 0.06,
+            fadeSpeed: 0.012
+        };
+        
+        // Check if game over
+        if (this.lives <= 0) {
+            this.gameOver = true;
+        }
+    }
 
     resetGame() {
         this.gameOver = false;
         this.score = 0;
+        this.lives = 3;  // Reset lives to 3
         this.scoreElement.textContent = this.score;
         this.balloons = [];
         this.particles = [];
         this.scorePopups = [];
+        this.brokenHeartDisplay = null;
         this.inflatingBalloon = null;
         this.birdsFrozen = false;
         this.freezeEndTime = 0;
@@ -470,6 +514,21 @@ class Game {
         
         // Update score popups
         this.scorePopups = this.scorePopups.filter(p => p.update());
+        
+        // Update broken heart display
+        if (this.brokenHeartDisplay) {
+            // Scale up
+            if (this.brokenHeartDisplay.scale < this.brokenHeartDisplay.maxScale) {
+                this.brokenHeartDisplay.scale += this.brokenHeartDisplay.scaleSpeed;
+            }
+            // Fade out
+            this.brokenHeartDisplay.opacity -= this.brokenHeartDisplay.fadeSpeed;
+            
+            // Remove when faded
+            if (this.brokenHeartDisplay.opacity <= 0) {
+                this.brokenHeartDisplay = null;
+            }
+        }
     }
 
     // ==========================================
@@ -519,12 +578,27 @@ class Game {
         
         // Score popups
         this.scorePopups.forEach(p => p.draw(ctx));
+        
+        // Draw broken heart image
+        if (this.brokenHeartDisplay && this.images.brokenHeart.complete) {
+            const display = this.brokenHeartDisplay;
+            ctx.save();
+            ctx.globalAlpha = display.opacity;
+            ctx.translate(display.x, display.y);
+            ctx.scale(display.scale, display.scale);
+            const imgSize = 100;  // Base size of the image
+            ctx.drawImage(this.images.brokenHeart, -imgSize/2, -imgSize/2, imgSize, imgSize);
+            ctx.restore();
+        }
 
         // Pump
         this.pump.draw(ctx, w, h, this.inflatingBalloon, this.imagesLoaded);
 
         // Back button
         this.backButton.draw(ctx);
+        
+        // Draw hearts (lives)
+        this.drawHearts();
 
         // Developer credit
         const isNight = this.weather.isNighttime();
@@ -539,6 +613,28 @@ class Game {
             this.drawGameOverModal();
         }
     }
+    
+drawHearts() {
+    const ctx = this.ctx;
+    const heartSize = 50;
+    const spacing = 15;
+    const startX = this.canvas.width - (heartSize * 3 + spacing * 2 + 20);
+    const startY = 20;
+
+    for (let i = 0; i < 3; i++) {
+        const x = startX + i * (heartSize + spacing);
+        const y = startY;
+        
+        // Choose image based on whether life is active
+        const heartImg = i < this.lives ? this.images.heart : this.images.emptyHeart;
+        
+        // Draw heart image if loaded
+        if (heartImg.complete) {
+            ctx.drawImage(heartImg, x, y, heartSize, heartSize);
+        }
+    }
+}
+
     
     drawFreezeIndicator() {
         const ctx = this.ctx;
